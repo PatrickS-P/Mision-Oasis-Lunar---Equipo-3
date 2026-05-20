@@ -10,4 +10,4 @@ Proyecto de Ingenieria de Software I
 * *CAPCOM:* Laura Priscila Guerrero Echavarría
 
 ## 🏷️ Distintivo de Misión
-![Logo de Misión Oasis Lunar](patch.png)
+<img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/a4fb6377-3f61-46ca-86c4-a04111343478" />
