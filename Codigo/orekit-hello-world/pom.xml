@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
-        <orekit.version>12.1</orekit.version>
+        <orekit.version>13.0.3</orekit.version>
         <javafx.version>21.0.7</javafx.version>
     </properties>
 
