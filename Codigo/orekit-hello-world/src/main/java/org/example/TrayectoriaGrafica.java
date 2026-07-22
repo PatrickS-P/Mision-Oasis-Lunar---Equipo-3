@@ -13,10 +13,20 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
+/**
+ * Interfaz gráfica de la Misión Oasis Lunar.
+ * Representa visualmente la Tierra, la Luna, la nave espacial
+ * y el recorrido de una trayectoria lunar mediante JavaFX.
+ */
 public class TrayectoriaGrafica extends Application {
 
     private double angulo = 0;
 
+    /**
+     * Construye y muestra la escena principal del simulador.
+     *
+     * @param stage ventana principal proporcionada por JavaFX
+     */
     @Override
     public void start(Stage stage) {
 
@@ -39,6 +49,11 @@ public class TrayectoriaGrafica extends Application {
         root.setCenter(canvas);
 
         new AnimationTimer() {
+            /**
+             * Actualiza la animación de la nave en cada cuadro.
+             *
+             * @param now tiempo actual de la animación en nanosegundos
+             */
             @Override
             public void handle(long now) {
                 dibujar(gc, canvas.getWidth(), canvas.getHeight());
@@ -107,6 +122,11 @@ public class TrayectoriaGrafica extends Application {
         gc.fillText("Motor gráfico: JavaFX AnimationTimer", 25, alto - 20);
     }
 
+    /**
+     * Punto de entrada de la interfaz gráfica.
+     *
+     * @param args argumentos de línea de comandos
+     */
     public static void main(String[] args) {
         launch(args);
     }

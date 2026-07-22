@@ -12,8 +12,17 @@ import org.orekit.time.AbsoluteDate;
 import org.orekit.utils.Constants;
 import org.orekit.utils.PVCoordinates;
 
+/**
+ * Prototipo de consola del motor orbital de la Misión Oasis Lunar.
+ * Configura una órbita terrestre baja mediante Orekit.
+ */
 public class LeoHello {
 
+    /**
+     * Punto de entrada del prototipo orbital en consola.
+     *
+     * @param args argumentos de línea de comandos
+     */
     public static void main(String[] args) {
 
         System.out.println("==============================================================");

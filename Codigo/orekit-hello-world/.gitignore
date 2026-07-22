@@ -1,0 +1,29 @@
+# Maven
+target/
+*.class
+
+# Editores
+.vscode/
+.idea/
+*.iml
+.eclipse/
+.project
+.classpath
+.settings/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Orekit local
+orekit-data/
+orekit-data.zip
+orekit-data-main/
+.orekit-data/
+orekit-cache/
+
+# Temporales
+*.log
+*.tmp
+*.bak
+diagnostico_E4.txt

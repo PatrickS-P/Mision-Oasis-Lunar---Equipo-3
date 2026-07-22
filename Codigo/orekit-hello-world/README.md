@@ -1,74 +1,45 @@
-# Orekit LEO Hello World
+# Misión Oasis Lunar
 
-Propagación kepleriana de una órbita LEO circular (estilo ISS) en Java con Orekit.
+Simulador aeroespacial educativo desarrollado por la Tripulación 3 con Java, Orekit y JavaFX.
 
-## Requisitos
-- Java 11+  (`java -version`)
-- Maven 3.6+  (`mvn -version`)
-- Archivo de datos Orekit (ver paso 2)
+## Tecnologías
 
-## Paso 1 — Compilar y empaquetar
+- Java 17
+- Maven 3.9+
+- Orekit, según la versión declarada en pom.xml
+- JavaFX
 
-```bash
-mvn package -q
-```
+## Compilar
 
-Genera `target/orekit-hello-1.0-SNAPSHOT-shaded.jar` (fat-jar con todo incluido).
+En macOS, seleccionar Java 17 y compilar:
 
-## Paso 2 — Datos de Orekit (OBLIGATORIO)
+    export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+    mvn clean package
 
-Orekit necesita archivos de orientación terrestre (EOP), UTC-TAI, etc.
+El archivo JAR se genera dentro de la carpeta target.
 
-### Opción A — jar de datos oficial (más fácil)
+## Ejecutar la interfaz gráfica
 
-```bash
-# Descarga el jar de datos (~60 MB) desde Orekit Gitlab
-curl -LO https://gitlab.orekit.org/orekit/orekit-data/-/archive/main/orekit-data-main.zip
-unzip orekit-data-main.zip -d .
-mv orekit-data-main orekit-data
-```
+    mvn javafx:run
 
-### Opción B — Variable de entorno
+Clase principal: org.example.TrayectoriaGrafica
 
-```bash
-export OREKIT_DATA_DIR=/ruta/a/tu/orekit-data
-```
+## Generar Javadoc
 
-## Paso 3 — Ejecutar
+    mvn javadoc:javadoc
 
-```bash
-java -jar target/orekit-hello-1.0-SNAPSHOT-shaded.jar
-```
+La documentación HTML se genera en target/reports/apidocs.
 
-## Salida esperada
+## Alcance actual
 
-```
-✓ Datos Orekit cargados desde: .../orekit-data
-✓ Época inicial : 2024-01-01T00:00:00.000
-✓ Período orbital : 92.45 min
+El proyecto contiene un prototipo orbital de consola y una interfaz JavaFX que representa la Tierra, la Luna, la nave y su trayectoria. Este prototipo no debe presentarse como la implementación completa de todos los requisitos físicos de la misión.
 
-Fecha UTC                      X [km]         Y [km]         Z [km]    Radio [km]
-──────────────────────────────────────────────────────────────────────────────────────────
-2024-01-01T00:00:00.000        6778.000         0.000         0.000      6778.000
-2024-01-01T00:05:00.000        6611.234      1273.456       820.123      6778.001
-...
-✓ Propagación completada — cadena de herramientas Orekit OK
-```
+## Tripulación 3
 
-## Parámetros orbitales usados
+- Laura Priscila Guerrero — CDR y coordinación
+- Patrick — arquitectura y Git
+- Rommel — física y Orekit
+- Yanantonys — requerimientos
+- Martín — documentación
 
-| Parámetro | Valor | Descripción |
-|-----------|-------|-------------|
-| a | 6 778 km | Semieje mayor (altitud ~400 km) |
-| e | 0.001 | Excentricidad (casi circular) |
-| i | 51.6° | Inclinación (igual que la ISS) |
-| Ω, ω, M₀ | 0° | RAAN, arg. perigeo, anomalía media |
-| Propagador | Kepleriano | Solo J2 implícito en μ |
-| Duración | ~92 min | 1 período completo, paso 5 min |
-
-## Próximos pasos
-
-- Cambiar a `NumericalPropagator` para incluir perturbaciones (J2, drag, SRP)
-- Agregar `EcksteinHechlerPropagator` para perturbaciones analíticas rápidas
-- Exportar a TLE con `TleBuilder`
-- Graficar la traza en tierra con `OneAxisEllipsoid` + `TopocentricFrame`
+Las dependencias se administran mediante Maven. No deben agregarse archivos JAR manualmente ni subirse target, .vscode o datos locales de Orekit.
