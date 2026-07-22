@@ -32,8 +32,12 @@ public class TrayectoriaGrafica extends Application {
     private final Canvas canvas = new Canvas(850, 600);
 
     private final TextField campoAltitud = new TextField("185");
-    private final TextField campoDeltaV = new TextField("3150");
+    private final TextField campoDeltaV = new TextField("3.150");
     private final TextField campoEpocaTli = new TextField("0.1667");
+
+    private final TextField campoDireccionX = new TextField("1.0");
+    private final TextField campoDireccionY = new TextField("0.0");
+    private final TextField campoDireccionZ = new TextField("0.0");
 
     private final Label estado = new Label("Estado: esperando parámetros");
     private final Label tiempo = new Label("Tiempo: --");
@@ -104,6 +108,9 @@ public class TrayectoriaGrafica extends Application {
         configurarCampo(campoAltitud);
         configurarCampo(campoDeltaV);
         configurarCampo(campoEpocaTli);
+        configurarCampo(campoDireccionX);
+        configurarCampo(campoDireccionY);
+        configurarCampo(campoDireccionZ);
 
         Label tituloParametros = crearTituloSeccion("PARÁMETROS");
 
@@ -112,10 +119,16 @@ public class TrayectoriaGrafica extends Application {
                 tituloParametros,
                 crearEtiqueta("Altitud inicial (km)"),
                 campoAltitud,
-                crearEtiqueta("Delta-v TLI (m/s)"),
+                crearEtiqueta("Delta-v TLI (km/s)"),
                 campoDeltaV,
                 crearEtiqueta("Época TLI (horas)"),
                 campoEpocaTli,
+                crearEtiqueta("Dirección X / T (tangencial)"),
+                campoDireccionX,
+                crearEtiqueta("Dirección Y / N (normal)"),
+                campoDireccionY,
+                crearEtiqueta("Dirección Z / W (binormal)"),
+                campoDireccionZ,
                 botonEjecutar,
                 botonReiniciar
         );
@@ -210,16 +223,33 @@ public class TrayectoriaGrafica extends Application {
         ParametrosSimulacion parametros;
 
         try {
-            double altitudKm = Double.parseDouble(campoAltitud.getText());
-            double deltaVMps = Double.parseDouble(campoDeltaV.getText());
-            double epocaHoras = Double.parseDouble(campoEpocaTli.getText());
+            double altitudKm =
+                    Double.parseDouble(campoAltitud.getText());
+
+            double deltaVKmps =
+                    Double.parseDouble(campoDeltaV.getText());
+
+            double epocaHoras =
+                    Double.parseDouble(campoEpocaTli.getText());
+
+            double direccionX =
+                    Double.parseDouble(campoDireccionX.getText());
+
+            double direccionY =
+                    Double.parseDouble(campoDireccionY.getText());
+
+            double direccionZ =
+                    Double.parseDouble(campoDireccionZ.getText());
 
             parametros = new ParametrosSimulacion(
                     altitudKm,
-                    deltaVMps,
+                    deltaVKmps * 1000.0,
                     epocaHoras * 3600.0,
                     120.0,
-                    600.0
+                    600.0,
+                    direccionX,
+                    direccionY,
+                    direccionZ
             );
         } catch (NumberFormatException excepcion) {
             estado.setText("Error: introduzca solamente valores numéricos.");
