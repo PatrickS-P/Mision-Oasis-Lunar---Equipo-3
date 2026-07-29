@@ -3,6 +3,8 @@ package org.example;
 import java.util.List;
 import java.util.Optional;
 
+import org.orekit.utils.Constants;
+
 /**
  * Resultado completo de una propagación orbital.
  *
@@ -19,15 +21,31 @@ public record ResultadoSimulacion(
 ) {
 
     /**
-     * Crea un resultado inmutable.
-     *
-     * @param puntos trayectoria precalculada
-     * @param indicePeriapsisLunar índice del punto más cercano a la Luna
-     * @param indiceReentrada índice del punto de reentrada o -1
-     * @param fuenteDatos ubicación de los datos Orekit utilizados
+     * Crea un resultado inmutable y valida los índices asociados.
      */
     public ResultadoSimulacion {
         puntos = List.copyOf(puntos);
+
+        if (puntos.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "El resultado debe contener puntos de trayectoria."
+            );
+        }
+
+        if (
+                indicePeriapsisLunar < 0
+                || indicePeriapsisLunar >= puntos.size()
+        ) {
+            throw new IllegalArgumentException(
+                    "El índice de periapsis lunar no es válido."
+            );
+        }
+
+        if (indiceReentrada >= puntos.size()) {
+            throw new IllegalArgumentException(
+                    "El índice de reentrada no es válido."
+            );
+        }
     }
 
     /**
@@ -37,6 +55,16 @@ public record ResultadoSimulacion(
      */
     public PuntoTelemetria periapsisLunar() {
         return puntos.get(indicePeriapsisLunar);
+    }
+
+    /**
+     * Calcula la altitud del periapsis sobre la superficie lunar.
+     *
+     * @return altitud sobre la Luna en kilómetros
+     */
+    public double altitudPeriapsisLunarKm() {
+        return periapsisLunar().distanciaLunarKm()
+                - Constants.MOON_EQUATORIAL_RADIUS / 1000.0;
     }
 
     /**

@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MotorOrbital.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Misión Oasis Lunar</a> &gt; <a href="index.source.html" class="el_package">org.example</a> &gt; <span class="el_source">MotorOrbital.java</span></div><h1>MotorOrbital.java</h1><pre class="source lang-java linenums">package org.example;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+import org.hipparchus.geometry.euclidean.threed.Vector3D;
+import org.orekit.bodies.CelestialBody;
+import org.orekit.bodies.CelestialBodyFactory;
+import org.orekit.bodies.OneAxisEllipsoid;
+import org.orekit.frames.Frame;
+import org.orekit.frames.FramesFactory;
+import org.orekit.orbits.Orbit;
+import org.orekit.propagation.SpacecraftState;
+import org.orekit.propagation.events.AltitudeDetector;
+import org.orekit.propagation.events.ExtremumApproachDetector;
+import org.orekit.propagation.events.handlers.RecordAndContinue;
+import org.orekit.propagation.numerical.NumericalPropagator;
+import org.orekit.propagation.sampling.OrekitStepNormalizer;
+import org.orekit.time.AbsoluteDate;
+import org.orekit.time.TimeScalesFactory;
+import org.orekit.utils.IERSConventions;
+import org.orekit.utils.PVCoordinates;
+
+/**
+ * Motor de propagación numérica de la Misión Oasis Lunar.
+ *
+ * Incluye gravedad terrestre 8x8, perturbaciones de Luna y Sol,
+ * maniobra TLI, controlador de pasos y detectores de eventos.
+ */
+public final class MotorOrbital {
+
+    private static final double ALTITUD_REENTRADA_M = 120_000.0;
+    private static final double TOLERANCIA_TIEMPO_SEGUNDOS = 1.0e-6;
+
+    private MotorOrbital() {
+        // Clase de utilidad.
+    }
+
+    /**
+     * Ejecuta una simulación orbital completa.
+     *
+     * @param parametros parámetros configurables de la misión
+     * @return trayectoria, periapsis lunar y posible reentrada
+     */
+    public static ResultadoSimulacion simular(
+            ParametrosSimulacion parametros
+    ) {
+<span class="fc" id="L50">        String fuenteDatos = ConfiguracionOrekit.configurar();</span>
+
+<span class="fc" id="L52">        Frame marcoInercial = FramesFactory.getGCRF();</span>
+<span class="fc" id="L53">        Frame marcoTerrestre = FramesFactory.getITRF(</span>
+                IERSConventions.IERS_2010,
+                true
+        );
+
+<span class="fc" id="L58">        OneAxisEllipsoid tierra =</span>
+<span class="fc" id="L59">                ConfiguradorMisionOrbital.crearTierra(marcoTerrestre);</span>
+
+<span class="fc" id="L61">        AbsoluteDate fechaInicial = new AbsoluteDate(</span>
+                2026,
+                1,
+                1,
+                0,
+                0,
+                0.0,
+<span class="fc" id="L68">                TimeScalesFactory.getUTC()</span>
+        );
+
+<span class="fc" id="L71">        Orbit orbitaInicial =</span>
+<span class="fc" id="L72">                ConfiguradorMisionOrbital.crearOrbitaInicial(</span>
+                        parametros,
+                        marcoInercial,
+                        fechaInicial
+                );
+
+<span class="fc" id="L78">        CelestialBody luna = CelestialBodyFactory.getMoon();</span>
+<span class="fc" id="L79">        CelestialBody sol = CelestialBodyFactory.getSun();</span>
+
+<span class="fc" id="L81">        NumericalPropagator propagador =</span>
+<span class="fc" id="L82">                ConfiguradorMisionOrbital.crearPropagador(</span>
+                        orbitaInicial,
+                        marcoInercial,
+                        marcoTerrestre,
+                        luna,
+                        sol
+                );
+
+<span class="fc" id="L90">        AbsoluteDate fechaTli = fechaInicial.shiftedBy(</span>
+<span class="fc" id="L91">                parametros.retrasoTliSegundos()</span>
+        );
+
+<span class="fc" id="L94">        propagador.addEventDetector(</span>
+<span class="fc" id="L95">                ConfiguradorMisionOrbital.crearManiobraTli(</span>
+                        parametros,
+                        fechaInicial
+                )
+        );
+
+        /* OAM-6: detector del acercamiento extremo a la Luna. */
+<span class="fc" id="L102">        RecordAndContinue registroPeriapsis = new RecordAndContinue();</span>
+<span class="fc" id="L103">        ExtremumApproachDetector detectorPeriapsis =</span>
+                new ExtremumApproachDetector(luna)
+<span class="fc" id="L105">                        .withMaxCheck(1_800.0)</span>
+<span class="fc" id="L106">                        .withThreshold(1.0)</span>
+<span class="fc" id="L107">                        .withHandler(registroPeriapsis);</span>
+<span class="fc" id="L108">        propagador.addEventDetector(detectorPeriapsis);</span>
+
+        /* OAM-7: cruce descendente de la interfaz de reentrada a 120 km. */
+<span class="fc" id="L111">        RecordAndContinue registroReentrada = new RecordAndContinue();</span>
+<span class="fc" id="L112">        AltitudeDetector detectorReentrada =</span>
+                new AltitudeDetector(
+                        600.0,
+                        1.0,
+                        ALTITUD_REENTRADA_M,
+                        tierra
+<span class="fc" id="L118">                ).withHandler(registroReentrada);</span>
+<span class="fc" id="L119">        propagador.addEventDetector(detectorReentrada);</span>
+
+<span class="fc" id="L121">        double duracionSegundos = parametros.duracionHoras() * 3600.0;</span>
+<span class="fc" id="L122">        int cantidadPuntos = Math.max(</span>
+                500,
+<span class="fc" id="L124">                (int) Math.ceil(</span>
+                        duracionSegundos
+<span class="fc" id="L126">                        / parametros.pasoMuestreoSegundos()</span>
+                ) + 1
+        );
+<span class="fc" id="L129">        double pasoReal = duracionSegundos / (cantidadPuntos - 1);</span>
+
+<span class="fc" id="L131">        List&lt;PuntoTelemetria&gt; puntosCapturados = new ArrayList&lt;&gt;();</span>
+
+        /*
+         * OAM-5: se recopila la trayectoria en una sola propagación.
+         * Solamente se registran puntos a partir de la TLI.
+         */
+<span class="fc" id="L137">        OrekitStepNormalizer controladorPasos =</span>
+                new OrekitStepNormalizer(
+                        pasoReal,
+                        estado -&gt; {
+<span class="fc bfc" id="L141" title="All 2 branches covered.">                            if (estado.getDate().compareTo(fechaTli) &gt;= 0) {</span>
+<span class="fc" id="L142">                                puntosCapturados.add(</span>
+<span class="fc" id="L143">                                        convertirEstado(</span>
+                                                estado,
+                                                fechaInicial,
+                                                luna,
+                                                marcoInercial,
+                                                tierra
+                                        )
+                                );
+                            }
+<span class="fc" id="L152">                        }</span>
+                );
+
+<span class="fc" id="L155">        propagador.getMultiplexer().add(controladorPasos);</span>
+
+<span class="fc" id="L157">        AbsoluteDate fechaFinal =</span>
+<span class="fc" id="L158">                fechaInicial.shiftedBy(duracionSegundos);</span>
+<span class="fc" id="L159">        propagador.propagate(fechaFinal);</span>
+
+<span class="fc" id="L161">        Optional&lt;SpacecraftState&gt; estadoPeriapsis =</span>
+                registroPeriapsis
+<span class="fc" id="L163">                        .getEvents()</span>
+<span class="fc" id="L164">                        .stream()</span>
+<span class="fc" id="L165">                        .filter(RecordAndContinue.Event::isIncreasing)</span>
+<span class="fc" id="L166">                        .map(RecordAndContinue.Event::getState)</span>
+<span class="fc" id="L167">                        .filter(</span>
+                                estado -&gt;
+<span class="fc" id="L169">                                        estado.getDate()</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                                                .compareTo(fechaTli) &gt;= 0</span>
+                        )
+<span class="fc" id="L172">                        .min(</span>
+<span class="fc" id="L173">                                Comparator.comparingDouble(</span>
+<span class="fc" id="L174">                                        estado -&gt; distanciaLunar(</span>
+                                                estado,
+                                                luna,
+                                                marcoInercial
+                                        )
+                                )
+                        );
+
+<span class="fc" id="L182">        Optional&lt;SpacecraftState&gt; estadoReentrada =</span>
+                registroReentrada
+<span class="fc" id="L184">                        .getEvents()</span>
+<span class="fc" id="L185">                        .stream()</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">                        .filter(evento -&gt; !evento.isIncreasing())</span>
+<span class="fc" id="L187">                        .map(RecordAndContinue.Event::getState)</span>
+<span class="fc" id="L188">                        .filter(</span>
+                                estado -&gt;
+<span class="fc" id="L190">                                        estado.getDate()</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">                                                .compareTo(fechaTli) &gt;= 0</span>
+                        )
+<span class="fc" id="L193">                        .findFirst();</span>
+
+<span class="fc" id="L195">        estadoPeriapsis.ifPresent(</span>
+<span class="fc" id="L196">                estado -&gt; puntosCapturados.add(</span>
+<span class="fc" id="L197">                        convertirEstado(</span>
+                                estado,
+                                fechaInicial,
+                                luna,
+                                marcoInercial,
+                                tierra
+                        )
+                )
+        );
+
+<span class="fc" id="L207">        estadoReentrada.ifPresent(</span>
+<span class="fc" id="L208">                estado -&gt; puntosCapturados.add(</span>
+<span class="fc" id="L209">                        convertirEstado(</span>
+                                estado,
+                                fechaInicial,
+                                luna,
+                                marcoInercial,
+                                tierra
+                        )
+                )
+        );
+
+<span class="fc" id="L219">        List&lt;PuntoTelemetria&gt; puntos = ordenarYDepurar(puntosCapturados);</span>
+
+        /*
+         * La trayectoria del MVS termina en la interfaz de reentrada.
+         * Esto evita que la interfaz continúe animando la nave después
+         * de detectar el retorno terrestre.
+         */
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        if (estadoReentrada.isPresent()) {</span>
+<span class="fc" id="L227">            double tiempoReentrada = estadoReentrada.get()</span>
+<span class="fc" id="L228">                    .getDate()</span>
+<span class="fc" id="L229">                    .durationFrom(fechaInicial);</span>
+
+<span class="fc" id="L231">            puntos = puntos</span>
+<span class="fc" id="L232">                    .stream()</span>
+<span class="fc" id="L233">                    .filter(</span>
+                            punto -&gt;
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                                    punto.tiempoSegundos()</span>
+                                    &lt;= tiempoReentrada
+                                    + TOLERANCIA_TIEMPO_SEGUNDOS
+                    )
+<span class="fc" id="L239">                    .toList();</span>
+        }
+
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">        if (puntos.isEmpty()) {</span>
+<span class="nc" id="L243">            throw new IllegalStateException(</span>
+                    &quot;Orekit no generó puntos de trayectoria.&quot;
+            );
+        }
+
+        /*
+         * La lista pudo haberse reasignado al recortarla en la reentrada.
+         * Guardamos la versión definitiva en una referencia final para que
+         * Java permita usarla dentro de las expresiones lambda siguientes.
+         */
+<span class="fc" id="L253">        final List&lt;PuntoTelemetria&gt; puntosFinales = puntos;</span>
+
+<span class="fc" id="L255">        int indicePeriapsis = estadoPeriapsis</span>
+<span class="fc" id="L256">                .map(</span>
+<span class="fc" id="L257">                        estado -&gt; buscarIndiceTemporal(</span>
+                                puntosFinales,
+<span class="fc" id="L259">                                estado.getDate().durationFrom(fechaInicial)</span>
+                        )
+                )
+<span class="fc" id="L262">                .orElseGet(</span>
+<span class="nc" id="L263">                        () -&gt; buscarDistanciaLunarMinima(puntosFinales)</span>
+                );
+
+<span class="fc" id="L266">        int indiceReentrada = estadoReentrada</span>
+<span class="fc" id="L267">                .map(</span>
+<span class="fc" id="L268">                        estado -&gt; buscarIndiceTemporal(</span>
+                                puntosFinales,
+<span class="fc" id="L270">                                estado.getDate().durationFrom(fechaInicial)</span>
+                        )
+                )
+<span class="fc" id="L273">                .orElse(-1);</span>
+
+<span class="fc" id="L275">        return new ResultadoSimulacion(</span>
+                puntosFinales,
+                indicePeriapsis,
+                indiceReentrada,
+                fuenteDatos
+        );
+    }
+
+    private static PuntoTelemetria convertirEstado(
+            SpacecraftState estado,
+            AbsoluteDate fechaInicial,
+            CelestialBody luna,
+            Frame marcoInercial,
+            OneAxisEllipsoid tierra
+    ) {
+<span class="fc" id="L290">        PVCoordinates pv = estado.getPVCoordinates();</span>
+<span class="fc" id="L291">        Vector3D posicion = pv.getPosition();</span>
+<span class="fc" id="L292">        Vector3D posicionLuna = luna.getPVCoordinates(</span>
+<span class="fc" id="L293">                estado.getDate(),</span>
+                marcoInercial
+<span class="fc" id="L295">        ).getPosition();</span>
+
+<span class="fc" id="L297">        double altitudMetros = tierra.transform(</span>
+                posicion,
+                marcoInercial,
+<span class="fc" id="L300">                estado.getDate()</span>
+<span class="fc" id="L301">        ).getAltitude();</span>
+
+<span class="fc" id="L303">        EstadoTelemetria estadoTelemetria = new EstadoTelemetria() {</span>
+            @Override
+            public Vector3D posicionNaveMetros() {
+<span class="fc" id="L306">                return posicion;</span>
+            }
+
+            @Override
+            public Vector3D posicionLunaMetros() {
+<span class="fc" id="L311">                return posicionLuna;</span>
+            }
+
+            @Override
+            public Vector3D velocidadNaveMetrosSegundo() {
+<span class="fc" id="L316">                return pv.getVelocity();</span>
+            }
+
+            @Override
+            public double altitudTerrestreMetros() {
+<span class="fc" id="L321">                return altitudMetros;</span>
+            }
+        };
+
+<span class="fc" id="L325">        return ModeloTelemetria.calcular(</span>
+<span class="fc" id="L326">                estado.getDate().durationFrom(fechaInicial),</span>
+                estadoTelemetria
+        );
+    }
+
+    private static double distanciaLunar(
+            SpacecraftState estado,
+            CelestialBody luna,
+            Frame marcoInercial
+    ) {
+<span class="fc" id="L336">        Vector3D posicionNave =</span>
+<span class="fc" id="L337">                estado.getPVCoordinates().getPosition();</span>
+<span class="fc" id="L338">        Vector3D posicionLuna = luna.getPVCoordinates(</span>
+<span class="fc" id="L339">                estado.getDate(),</span>
+                marcoInercial
+<span class="fc" id="L341">        ).getPosition();</span>
+
+<span class="fc" id="L343">        return Vector3D.distance(posicionNave, posicionLuna);</span>
+    }
+
+    private static List&lt;PuntoTelemetria&gt; ordenarYDepurar(
+            List&lt;PuntoTelemetria&gt; puntosOriginales
+    ) {
+<span class="fc" id="L349">        List&lt;PuntoTelemetria&gt; ordenados = new ArrayList&lt;&gt;(puntosOriginales);</span>
+<span class="fc" id="L350">        ordenados.sort(</span>
+<span class="fc" id="L351">                Comparator.comparingDouble(</span>
+                        PuntoTelemetria::tiempoSegundos
+                )
+        );
+
+<span class="fc" id="L356">        List&lt;PuntoTelemetria&gt; depurados = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L358" title="All 2 branches covered.">        for (PuntoTelemetria punto : ordenados) {</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">            if (depurados.isEmpty()) {</span>
+<span class="fc" id="L360">                depurados.add(punto);</span>
+<span class="fc" id="L361">                continue;</span>
+            }
+
+<span class="fc" id="L364">            PuntoTelemetria ultimo = depurados.get(depurados.size() - 1);</span>
+<span class="fc" id="L365">            double diferencia = Math.abs(</span>
+<span class="fc" id="L366">                    punto.tiempoSegundos() - ultimo.tiempoSegundos()</span>
+            );
+
+<span class="pc bpc" id="L369" title="1 of 2 branches missed.">            if (diferencia &lt;= TOLERANCIA_TIEMPO_SEGUNDOS) {</span>
+                /* Se conserva el último, que suele ser el punto exacto del evento. */
+<span class="nc" id="L371">                depurados.set(depurados.size() - 1, punto);</span>
+            } else {
+<span class="fc" id="L373">                depurados.add(punto);</span>
+            }
+<span class="fc" id="L375">        }</span>
+
+<span class="fc" id="L377">        return depurados;</span>
+    }
+
+    private static int buscarIndiceTemporal(
+            List&lt;PuntoTelemetria&gt; puntos,
+            double tiempoSegundos
+    ) {
+<span class="fc" id="L384">        int mejorIndice = 0;</span>
+<span class="fc" id="L385">        double mejorDiferencia = Double.POSITIVE_INFINITY;</span>
+
+<span class="fc bfc" id="L387" title="All 2 branches covered.">        for (int indice = 0; indice &lt; puntos.size(); indice++) {</span>
+<span class="fc" id="L388">            double diferencia = Math.abs(</span>
+<span class="fc" id="L389">                    puntos.get(indice).tiempoSegundos()</span>
+                    - tiempoSegundos
+            );
+
+<span class="fc bfc" id="L393" title="All 2 branches covered.">            if (diferencia &lt; mejorDiferencia) {</span>
+<span class="fc" id="L394">                mejorDiferencia = diferencia;</span>
+<span class="fc" id="L395">                mejorIndice = indice;</span>
+            }
+        }
+
+<span class="fc" id="L399">        return mejorIndice;</span>
+    }
+
+    private static int buscarDistanciaLunarMinima(
+            List&lt;PuntoTelemetria&gt; puntos
+    ) {
+<span class="nc" id="L405">        int mejorIndice = 0;</span>
+<span class="nc" id="L406">        double menorDistancia = Double.POSITIVE_INFINITY;</span>
+
+<span class="nc bnc" id="L408" title="All 2 branches missed.">        for (int indice = 0; indice &lt; puntos.size(); indice++) {</span>
+<span class="nc" id="L409">            double distancia = puntos.get(indice).distanciaLunarKm();</span>
+
+<span class="nc bnc" id="L411" title="All 2 branches missed.">            if (distancia &lt; menorDistancia) {</span>
+<span class="nc" id="L412">                menorDistancia = distancia;</span>
+<span class="nc" id="L413">                mejorIndice = indice;</span>
+            }
+        }
+
+<span class="nc" id="L417">        return mejorIndice;</span>
+    }
+
+    /**
+     * Ejecuta una prueba del motor orbital.
+     *
+     * @param args argumentos de línea de comandos
+     */
+    public static void main(String[] args) {
+<span class="nc" id="L426">        ResultadoSimulacion resultado = simular(</span>
+<span class="nc" id="L427">                ParametrosSimulacion.valoresPredeterminados()</span>
+        );
+
+<span class="nc" id="L430">        PuntoTelemetria periapsis = resultado.periapsisLunar();</span>
+
+<span class="nc" id="L432">        System.out.println(&quot;========================================&quot;);</span>
+<span class="nc" id="L433">        System.out.println(&quot;MISIÓN OASIS LUNAR - MOTOR NUMÉRICO&quot;);</span>
+<span class="nc" id="L434">        System.out.println(&quot;========================================&quot;);</span>
+<span class="nc" id="L435">        System.out.println(</span>
+                &quot;Puntos generados con StepHandler: &quot;
+<span class="nc" id="L437">                + resultado.puntos().size()</span>
+        );
+<span class="nc" id="L439">        System.out.printf(</span>
+                &quot;Altitud del periapsis lunar: %.2f km%n&quot;,
+<span class="nc" id="L441">                resultado.altitudPeriapsisLunarKm()</span>
+        );
+<span class="nc" id="L443">        System.out.printf(</span>
+                &quot;Tiempo del periapsis: %.2f horas%n&quot;,
+<span class="nc" id="L445">                periapsis.tiempoSegundos() / 3600.0</span>
+        );
+<span class="nc" id="L447">        System.out.println(</span>
+                &quot;Reentrada detectada por evento: &quot;
+<span class="nc" id="L449">                + resultado.reentrada().isPresent()</span>
+        );
+<span class="nc" id="L451">        System.out.println(&quot;Datos Orekit: &quot; + resultado.fuenteDatos());</span>
+<span class="nc" id="L452">        System.out.println(&quot;========================================&quot;);</span>
+<span class="nc" id="L453">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

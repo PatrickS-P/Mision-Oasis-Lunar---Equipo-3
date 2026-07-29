@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModeloTelemetria.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Misión Oasis Lunar</a> &gt; <a href="index.source.html" class="el_package">org.example</a> &gt; <span class="el_source">ModeloTelemetria.java</span></div><h1>ModeloTelemetria.java</h1><pre class="source lang-java linenums">package org.example;
+
+import org.hipparchus.geometry.euclidean.threed.Vector3D;
+
+/**
+ * Lógica de modelo consumida por la interfaz de usuario.
+ *
+ * Calcula la telemetría a partir de un estado físico y genera textos de
+ * presentación sin depender de componentes JavaFX.
+ */
+public final class ModeloTelemetria {
+
+    private ModeloTelemetria() {
+        // Clase de utilidad.
+    }
+
+    /**
+     * Calcula un punto de telemetría a partir de un estado físico abstracto.
+     *
+     * @param tiempoSegundos tiempo desde el inicio
+     * @param estado estado físico de la nave
+     * @return telemetría calculada
+     */
+    public static PuntoTelemetria calcular(
+            double tiempoSegundos,
+            EstadoTelemetria estado
+    ) {
+<span class="fc" id="L28">        Vector3D posicion = estado.posicionNaveMetros();</span>
+<span class="fc" id="L29">        Vector3D posicionLuna = estado.posicionLunaMetros();</span>
+<span class="fc" id="L30">        Vector3D velocidad = estado.velocidadNaveMetrosSegundo();</span>
+
+<span class="fc" id="L32">        return new PuntoTelemetria(</span>
+                tiempoSegundos,
+<span class="fc" id="L34">                posicion.getX() / 1000.0,</span>
+<span class="fc" id="L35">                posicion.getY() / 1000.0,</span>
+<span class="fc" id="L36">                posicion.getZ() / 1000.0,</span>
+<span class="fc" id="L37">                estado.altitudTerrestreMetros() / 1000.0,</span>
+<span class="fc" id="L38">                Vector3D.distance(posicion, posicionLuna) / 1000.0,</span>
+<span class="fc" id="L39">                velocidad.getNorm() / 1000.0</span>
+        );
+    }
+
+    /**
+     * Genera los textos de telemetría mostrados por JavaFX.
+     *
+     * @param punto punto físico ya calculado
+     * @return textos de presentación
+     */
+    public static TelemetriaPresentacion presentar(
+            PuntoTelemetria punto
+    ) {
+<span class="fc" id="L52">        return new TelemetriaPresentacion(</span>
+<span class="fc" id="L53">                String.format(</span>
+                        &quot;Tiempo: %.2f horas&quot;,
+<span class="fc" id="L55">                        punto.tiempoSegundos() / 3600.0</span>
+                ),
+<span class="fc" id="L57">                String.format(</span>
+                        &quot;Altitud terrestre: %.2f km&quot;,
+<span class="fc" id="L59">                        punto.altitudKm()</span>
+                ),
+<span class="fc" id="L61">                String.format(</span>
+                        &quot;Distancia lunar: %.2f km&quot;,
+<span class="fc" id="L63">                        punto.distanciaLunarKm()</span>
+                ),
+<span class="fc" id="L65">                String.format(</span>
+                        &quot;Velocidad: %.3f km/s&quot;,
+<span class="fc" id="L67">                        punto.velocidadKmS()</span>
+                )
+        );
+    }
+
+    /**
+     * Textos listos para ser consumidos por la vista.
+     */
+<span class="fc" id="L75">    public record TelemetriaPresentacion(</span>
+            String tiempo,
+            String altitud,
+            String distanciaLunar,
+            String velocidad
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConfiguradorMisionOrbital.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Misión Oasis Lunar</a> &gt; <a href="index.source.html" class="el_package">org.example</a> &gt; <span class="el_source">ConfiguradorMisionOrbital.java</span></div><h1>ConfiguradorMisionOrbital.java</h1><pre class="source lang-java linenums">package org.example;
+
+import org.hipparchus.geometry.euclidean.threed.Vector3D;
+import org.hipparchus.ode.nonstiff.DormandPrince853Integrator;
+import org.orekit.attitudes.LofOffset;
+import org.orekit.bodies.CelestialBody;
+import org.orekit.bodies.OneAxisEllipsoid;
+import org.orekit.forces.gravity.HolmesFeatherstoneAttractionModel;
+import org.orekit.forces.gravity.ThirdBodyAttraction;
+import org.orekit.forces.gravity.potential.GravityFieldFactory;
+import org.orekit.forces.gravity.potential.NormalizedSphericalHarmonicsProvider;
+import org.orekit.forces.maneuvers.ImpulseManeuver;
+import org.orekit.frames.Frame;
+import org.orekit.frames.LOFType;
+import org.orekit.orbits.KeplerianOrbit;
+import org.orekit.orbits.Orbit;
+import org.orekit.orbits.OrbitType;
+import org.orekit.orbits.PositionAngleType;
+import org.orekit.propagation.SpacecraftState;
+import org.orekit.propagation.ToleranceProvider;
+import org.orekit.propagation.events.DateDetector;
+import org.orekit.propagation.numerical.NumericalPropagator;
+import org.orekit.time.AbsoluteDate;
+import org.orekit.utils.Constants;
+
+/**
+ * Construye los componentes físicos principales de la misión.
+ *
+ * La separación permite verificar de forma unitaria la órbita inicial,
+ * los modelos de fuerza y la configuración de la maniobra TLI.
+ */
+public final class ConfiguradorMisionOrbital {
+
+    public static final double MASA_INICIAL_KG = 1_000.0;
+    public static final double ISP_SEGUNDOS = 450.0;
+
+    private ConfiguradorMisionOrbital() {
+        // Clase de utilidad.
+    }
+
+    /**
+     * Crea la órbita circular de estacionamiento terrestre.
+     *
+     * @param parametros parámetros de la misión
+     * @param marcoInercial marco inercial de propagación
+     * @param fechaInicial fecha inicial
+     * @return órbita circular de estacionamiento
+     */
+    public static Orbit crearOrbitaInicial(
+            ParametrosSimulacion parametros,
+            Frame marcoInercial,
+            AbsoluteDate fechaInicial
+    ) {
+<span class="fc" id="L54">        double radioInicial =</span>
+                Constants.WGS84_EARTH_EQUATORIAL_RADIUS
+<span class="fc" id="L56">                + parametros.altitudInicialKm() * 1000.0;</span>
+
+<span class="fc" id="L58">        return new KeplerianOrbit(</span>
+                radioInicial,
+                0.0,
+<span class="fc" id="L61">                Math.toRadians(28.5),</span>
+                0.0,
+                0.0,
+                0.0,
+                PositionAngleType.MEAN,
+                marcoInercial,
+                fechaInicial,
+                Constants.WGS84_EARTH_MU
+        );
+    }
+
+    /**
+     * Obtiene el campo de gravedad terrestre normalizado 8x8.
+     *
+     * @return proveedor de armónicos esféricos 8x8
+     */
+    public static NormalizedSphericalHarmonicsProvider crearGravedad8x8() {
+<span class="fc" id="L78">        return GravityFieldFactory.getNormalizedProvider(8, 8);</span>
+    }
+
+    /**
+     * Crea el propagador numérico y registra los tres modelos de fuerza
+     * requeridos: gravedad terrestre 8x8, Luna y Sol.
+     *
+     * @param orbitaInicial órbita de estacionamiento
+     * @param marcoInercial marco inercial
+     * @param marcoTerrestre marco ligado a la Tierra
+     * @param luna cuerpo lunar
+     * @param sol cuerpo solar
+     * @return propagador configurado
+     */
+    public static NumericalPropagator crearPropagador(
+            Orbit orbitaInicial,
+            Frame marcoInercial,
+            Frame marcoTerrestre,
+            CelestialBody luna,
+            CelestialBody sol
+    ) {
+<span class="fc" id="L99">        double[][] tolerancias =</span>
+                ToleranceProvider
+<span class="fc" id="L101">                        .getDefaultToleranceProvider(10.0)</span>
+<span class="fc" id="L102">                        .getTolerances(</span>
+                                orbitaInicial,
+                                OrbitType.CARTESIAN
+                        );
+
+<span class="fc" id="L107">        DormandPrince853Integrator integrador =</span>
+                new DormandPrince853Integrator(
+                        0.1,
+                        300.0,
+                        tolerancias[0],
+                        tolerancias[1]
+                );
+
+<span class="fc" id="L115">        integrador.setInitialStepSize(10.0);</span>
+
+<span class="fc" id="L117">        LofOffset actitudTangencial =</span>
+                new LofOffset(marcoInercial, LOFType.TNW);
+
+<span class="fc" id="L120">        NumericalPropagator propagador =</span>
+                new NumericalPropagator(
+                        integrador,
+                        actitudTangencial
+                );
+
+<span class="fc" id="L126">        propagador.setOrbitType(OrbitType.CARTESIAN);</span>
+<span class="fc" id="L127">        propagador.setInitialState(</span>
+                new SpacecraftState(
+                        orbitaInicial,
+                        MASA_INICIAL_KG
+                )
+        );
+
+<span class="fc" id="L134">        propagador.addForceModel(</span>
+                new HolmesFeatherstoneAttractionModel(
+                        marcoTerrestre,
+<span class="fc" id="L137">                        crearGravedad8x8()</span>
+                )
+        );
+<span class="fc" id="L140">        propagador.addForceModel(new ThirdBodyAttraction(luna));</span>
+<span class="fc" id="L141">        propagador.addForceModel(new ThirdBodyAttraction(sol));</span>
+
+<span class="fc" id="L143">        return propagador;</span>
+    }
+
+    /**
+     * Convierte la magnitud y dirección configuradas en un vector delta-v
+     * expresado en el marco local TNW.
+     *
+     * @param parametros parámetros de la misión
+     * @return vector delta-v en metros por segundo
+     */
+    public static Vector3D crearVectorDeltaV(
+            ParametrosSimulacion parametros
+    ) {
+<span class="fc" id="L156">        Vector3D direccion = new Vector3D(</span>
+<span class="fc" id="L157">                parametros.direccionTliX(),</span>
+<span class="fc" id="L158">                parametros.direccionTliY(),</span>
+<span class="fc" id="L159">                parametros.direccionTliZ()</span>
+<span class="fc" id="L160">        ).normalize();</span>
+
+<span class="fc" id="L162">        return direccion.scalarMultiply(parametros.deltaVMps());</span>
+    }
+
+    /**
+     * Crea la maniobra impulsiva TLI en la fecha configurada.
+     *
+     * @param parametros parámetros de la misión
+     * @param fechaInicial fecha de inicio
+     * @return detector/maniobra TLI
+     */
+    public static ImpulseManeuver crearManiobraTli(
+            ParametrosSimulacion parametros,
+            AbsoluteDate fechaInicial
+    ) {
+<span class="fc" id="L176">        AbsoluteDate fechaTli = fechaInicial.shiftedBy(</span>
+<span class="fc" id="L177">                parametros.retrasoTliSegundos()</span>
+        );
+
+<span class="fc" id="L180">        return new ImpulseManeuver(</span>
+                new DateDetector(fechaTli),
+<span class="fc" id="L182">                crearVectorDeltaV(parametros),</span>
+                ISP_SEGUNDOS
+        );
+    }
+
+    /**
+     * Crea el modelo elipsoidal WGS84 de la Tierra.
+     *
+     * @param marcoTerrestre marco ligado a la Tierra
+     * @return elipsoide terrestre
+     */
+    public static OneAxisEllipsoid crearTierra(Frame marcoTerrestre) {
+<span class="fc" id="L194">        return new OneAxisEllipsoid(</span>
+                Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
+                Constants.WGS84_EARTH_FLATTENING,
+                marcoTerrestre
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConfiguracionOrekit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Misión Oasis Lunar</a> &gt; <a href="index.source.html" class="el_package">org.example</a> &gt; <span class="el_source">ConfiguracionOrekit.java</span></div><h1>ConfiguracionOrekit.java</h1><pre class="source lang-java linenums">package org.example;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.orekit.data.DataContext;
+import org.orekit.data.DataProvidersManager;
+import org.orekit.data.DirectoryCrawler;
+
+/**
+ * Localiza y registra los datos auxiliares utilizados por Orekit.
+ */
+public final class ConfiguracionOrekit {
+
+    private static boolean configurada;
+    private static Path rutaConfigurada;
+
+    private ConfiguracionOrekit() {
+        // Clase de utilidad.
+    }
+
+    /**
+     * Busca una carpeta orekit-data y la registra en Orekit.
+     *
+     * @return ruta absoluta de la carpeta utilizada
+     * @throws IllegalStateException cuando no se encuentra una carpeta válida
+     */
+    public static synchronized String configurar() {
+
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (configurada) {</span>
+<span class="fc" id="L33">            return rutaConfigurada.toString();</span>
+        }
+
+<span class="fc" id="L36">        List&lt;Path&gt; candidatas = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L38">        String variableEntorno = System.getenv(&quot;OREKIT_DATA_DIR&quot;);</span>
+<span class="pc bpc" id="L39" title="2 of 4 branches missed.">        if (variableEntorno != null &amp;&amp; !variableEntorno.isBlank()) {</span>
+<span class="fc" id="L40">            candidatas.add(Path.of(variableEntorno));</span>
+        }
+
+<span class="fc" id="L43">        candidatas.add(Path.of(&quot;orekit-data&quot;));</span>
+<span class="fc" id="L44">        candidatas.add(Path.of(&quot;..&quot;, &quot;orekit-data&quot;));</span>
+<span class="fc" id="L45">        candidatas.add(Path.of(System.getProperty(&quot;user.home&quot;), &quot;orekit-data&quot;));</span>
+
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">        for (Path candidata : candidatas) {</span>
+<span class="fc" id="L48">            Path ruta = candidata.toAbsolutePath().normalize();</span>
+
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">            if (Files.isDirectory(ruta)) {</span>
+                DataProvidersManager manager =
+<span class="fc" id="L52">                        DataContext.getDefault().getDataProvidersManager();</span>
+
+<span class="fc" id="L54">                manager.addProvider(new DirectoryCrawler(ruta.toFile()));</span>
+
+<span class="fc" id="L56">                configurada = true;</span>
+<span class="fc" id="L57">                rutaConfigurada = ruta;</span>
+
+<span class="fc" id="L59">                return ruta.toString();</span>
+            }
+<span class="nc" id="L61">        }</span>
+
+<span class="nc" id="L63">        throw new IllegalStateException(</span>
+                &quot;No se encontró la carpeta orekit-data. &quot;
+                + &quot;Configure la variable OREKIT_DATA_DIR.&quot;
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

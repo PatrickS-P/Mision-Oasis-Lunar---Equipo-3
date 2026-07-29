@@ -6,35 +6,20 @@ import java.util.List;
 import java.util.Optional;
 
 import org.hipparchus.geometry.euclidean.threed.Vector3D;
-import org.hipparchus.ode.nonstiff.DormandPrince853Integrator;
-import org.hipparchus.util.FastMath;
-import org.orekit.attitudes.LofOffset;
 import org.orekit.bodies.CelestialBody;
 import org.orekit.bodies.CelestialBodyFactory;
 import org.orekit.bodies.OneAxisEllipsoid;
-import org.orekit.forces.gravity.HolmesFeatherstoneAttractionModel;
-import org.orekit.forces.gravity.ThirdBodyAttraction;
-import org.orekit.forces.gravity.potential.GravityFieldFactory;
-import org.orekit.forces.gravity.potential.NormalizedSphericalHarmonicsProvider;
-import org.orekit.forces.maneuvers.ImpulseManeuver;
 import org.orekit.frames.Frame;
 import org.orekit.frames.FramesFactory;
-import org.orekit.frames.LOFType;
-import org.orekit.orbits.KeplerianOrbit;
 import org.orekit.orbits.Orbit;
-import org.orekit.orbits.OrbitType;
-import org.orekit.orbits.PositionAngleType;
 import org.orekit.propagation.SpacecraftState;
-import org.orekit.propagation.ToleranceProvider;
 import org.orekit.propagation.events.AltitudeDetector;
-import org.orekit.propagation.events.DateDetector;
 import org.orekit.propagation.events.ExtremumApproachDetector;
 import org.orekit.propagation.events.handlers.RecordAndContinue;
 import org.orekit.propagation.numerical.NumericalPropagator;
 import org.orekit.propagation.sampling.OrekitStepNormalizer;
 import org.orekit.time.AbsoluteDate;
 import org.orekit.time.TimeScalesFactory;
-import org.orekit.utils.Constants;
 import org.orekit.utils.IERSConventions;
 import org.orekit.utils.PVCoordinates;
 
@@ -46,9 +31,8 @@ import org.orekit.utils.PVCoordinates;
  */
 public final class MotorOrbital {
 
-    private static final double MASA_INICIAL_KG = 1_000.0;
-    private static final double ISP_SEGUNDOS = 450.0;
     private static final double ALTITUD_REENTRADA_M = 120_000.0;
+    private static final double TOLERANCIA_TIEMPO_SEGUNDOS = 1.0e-6;
 
     private MotorOrbital() {
         // Clase de utilidad.
@@ -63,21 +47,16 @@ public final class MotorOrbital {
     public static ResultadoSimulacion simular(
             ParametrosSimulacion parametros
     ) {
-
         String fuenteDatos = ConfiguracionOrekit.configurar();
 
         Frame marcoInercial = FramesFactory.getGCRF();
-
         Frame marcoTerrestre = FramesFactory.getITRF(
                 IERSConventions.IERS_2010,
                 true
         );
 
-        OneAxisEllipsoid tierra = new OneAxisEllipsoid(
-                Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
-                Constants.WGS84_EARTH_FLATTENING,
-                marcoTerrestre
-        );
+        OneAxisEllipsoid tierra =
+                ConfiguradorMisionOrbital.crearTierra(marcoTerrestre);
 
         AbsoluteDate fechaInicial = new AbsoluteDate(
                 2026,
@@ -89,135 +68,47 @@ public final class MotorOrbital {
                 TimeScalesFactory.getUTC()
         );
 
-        double radioInicial =
-                Constants.WGS84_EARTH_EQUATORIAL_RADIUS
-                + parametros.altitudInicialKm() * 1000.0;
-
-        Orbit orbitaInicial = new KeplerianOrbit(
-                radioInicial,
-                0.0,
-                FastMath.toRadians(28.5),
-                0.0,
-                0.0,
-                0.0,
-                PositionAngleType.MEAN,
-                marcoInercial,
-                fechaInicial,
-                Constants.WGS84_EARTH_MU
-        );
-
-        double[][] tolerancias =
-                ToleranceProvider
-                        .getDefaultToleranceProvider(10.0)
-                        .getTolerances(
-                                orbitaInicial,
-                                OrbitType.CARTESIAN
-                        );
-
-        DormandPrince853Integrator integrador =
-                new DormandPrince853Integrator(
-                        0.1,
-                        300.0,
-                        tolerancias[0],
-                        tolerancias[1]
+        Orbit orbitaInicial =
+                ConfiguradorMisionOrbital.crearOrbitaInicial(
+                        parametros,
+                        marcoInercial,
+                        fechaInicial
                 );
-
-        integrador.setInitialStepSize(10.0);
-
-        LofOffset actitudTangencial =
-                new LofOffset(marcoInercial, LOFType.TNW);
-
-        NumericalPropagator propagador =
-                new NumericalPropagator(
-                        integrador,
-                        actitudTangencial
-                );
-
-        propagador.setOrbitType(OrbitType.CARTESIAN);
-
-        propagador.setInitialState(
-                new SpacecraftState(
-                        orbitaInicial,
-                        MASA_INICIAL_KG
-                )
-        );
-
-        NormalizedSphericalHarmonicsProvider gravedad8x8 =
-                GravityFieldFactory.getNormalizedProvider(8, 8);
-
-        propagador.addForceModel(
-                new HolmesFeatherstoneAttractionModel(
-                        marcoTerrestre,
-                        gravedad8x8
-                )
-        );
 
         CelestialBody luna = CelestialBodyFactory.getMoon();
         CelestialBody sol = CelestialBodyFactory.getSun();
 
-        propagador.addForceModel(
-                new ThirdBodyAttraction(luna)
-        );
-
-        propagador.addForceModel(
-                new ThirdBodyAttraction(sol)
-        );
+        NumericalPropagator propagador =
+                ConfiguradorMisionOrbital.crearPropagador(
+                        orbitaInicial,
+                        marcoInercial,
+                        marcoTerrestre,
+                        luna,
+                        sol
+                );
 
         AbsoluteDate fechaTli = fechaInicial.shiftedBy(
                 parametros.retrasoTliSegundos()
         );
 
-        DateDetector disparadorTli =
-                new DateDetector(fechaTli);
-
-        /*
-         * La dirección introducida puede tener cualquier magnitud.
-         * Se normaliza antes de multiplicarla por el delta-v.
-         *
-         * El sistema de referencia local utilizado es TNW:
-         * X = tangencial, Y = normal, Z = binormal.
-         */
-        Vector3D direccionTli = new Vector3D(
-                parametros.direccionTliX(),
-                parametros.direccionTliY(),
-                parametros.direccionTliZ()
-        ).normalize();
-
-        Vector3D vectorDeltaV = direccionTli.scalarMultiply(
-                parametros.deltaVMps()
+        propagador.addEventDetector(
+                ConfiguradorMisionOrbital.crearManiobraTli(
+                        parametros,
+                        fechaInicial
+                )
         );
 
-        ImpulseManeuver maniobraTli =
-                new ImpulseManeuver(
-                        disparadorTli,
-                        vectorDeltaV,
-                        ISP_SEGUNDOS
-                );
-
-        propagador.addEventDetector(maniobraTli);
-
-        /*
-         * OAM-6: detector del punto de acercamiento extremo
-         * entre la nave y la Luna.
-         */
-        RecordAndContinue registroPeriapsis =
-                new RecordAndContinue();
-
+        /* OAM-6: detector del acercamiento extremo a la Luna. */
+        RecordAndContinue registroPeriapsis = new RecordAndContinue();
         ExtremumApproachDetector detectorPeriapsis =
                 new ExtremumApproachDetector(luna)
                         .withMaxCheck(1_800.0)
                         .withThreshold(1.0)
                         .withHandler(registroPeriapsis);
-
         propagador.addEventDetector(detectorPeriapsis);
 
-        /*
-         * OAM-7: detector del cruce de la interfaz
-         * terrestre de reentrada a 120 km.
-         */
-        RecordAndContinue registroReentrada =
-                new RecordAndContinue();
-
+        /* OAM-7: cruce descendente de la interfaz de reentrada a 120 km. */
+        RecordAndContinue registroReentrada = new RecordAndContinue();
         AltitudeDetector detectorReentrada =
                 new AltitudeDetector(
                         600.0,
@@ -225,12 +116,9 @@ public final class MotorOrbital {
                         ALTITUD_REENTRADA_M,
                         tierra
                 ).withHandler(registroReentrada);
-
         propagador.addEventDetector(detectorReentrada);
 
-        double duracionSegundos =
-                parametros.duracionHoras() * 3600.0;
-
+        double duracionSegundos = parametros.duracionHoras() * 3600.0;
         int cantidadPuntos = Math.max(
                 500,
                 (int) Math.ceil(
@@ -238,27 +126,20 @@ public final class MotorOrbital {
                         / parametros.pasoMuestreoSegundos()
                 ) + 1
         );
+        double pasoReal = duracionSegundos / (cantidadPuntos - 1);
 
-        double pasoReal =
-                duracionSegundos / (cantidadPuntos - 1);
-
-        List<PuntoTelemetria> puntos =
-                new ArrayList<>();
+        List<PuntoTelemetria> puntosCapturados = new ArrayList<>();
 
         /*
-         * OAM-5: OrekitStepNormalizer implementa
-         * OrekitStepHandler y recopila la trayectoria
-         * durante una sola propagación.
+         * OAM-5: se recopila la trayectoria en una sola propagación.
+         * Solamente se registran puntos a partir de la TLI.
          */
         OrekitStepNormalizer controladorPasos =
                 new OrekitStepNormalizer(
                         pasoReal,
                         estado -> {
-                            if (
-                                    estado.getDate()
-                                            .compareTo(fechaTli) >= 0
-                            ) {
-                                puntos.add(
+                            if (estado.getDate().compareTo(fechaTli) >= 0) {
+                                puntosCapturados.add(
                                         convertirEstado(
                                                 estado,
                                                 fechaInicial,
@@ -271,13 +152,10 @@ public final class MotorOrbital {
                         }
                 );
 
-        propagador
-                .getMultiplexer()
-                .add(controladorPasos);
+        propagador.getMultiplexer().add(controladorPasos);
 
         AbsoluteDate fechaFinal =
                 fechaInicial.shiftedBy(duracionSegundos);
-
         propagador.propagate(fechaFinal);
 
         Optional<SpacecraftState> estadoPeriapsis =
@@ -293,12 +171,11 @@ public final class MotorOrbital {
                         )
                         .min(
                                 Comparator.comparingDouble(
-                                        estado ->
-                                                distanciaLunar(
-                                                        estado,
-                                                        luna,
-                                                        marcoInercial
-                                                )
+                                        estado -> distanciaLunar(
+                                                estado,
+                                                luna,
+                                                marcoInercial
+                                        )
                                 )
                         );
 
@@ -316,7 +193,7 @@ public final class MotorOrbital {
                         .findFirst();
 
         estadoPeriapsis.ifPresent(
-                estado -> puntos.add(
+                estado -> puntosCapturados.add(
                         convertirEstado(
                                 estado,
                                 fechaInicial,
@@ -328,7 +205,7 @@ public final class MotorOrbital {
         );
 
         estadoReentrada.ifPresent(
-                estado -> puntos.add(
+                estado -> puntosCapturados.add(
                         convertirEstado(
                                 estado,
                                 fechaInicial,
@@ -339,11 +216,28 @@ public final class MotorOrbital {
                 )
         );
 
-        puntos.sort(
-                Comparator.comparingDouble(
-                        PuntoTelemetria::tiempoSegundos
-                )
-        );
+        List<PuntoTelemetria> puntos = ordenarYDepurar(puntosCapturados);
+
+        /*
+         * La trayectoria del MVS termina en la interfaz de reentrada.
+         * Esto evita que la interfaz continúe animando la nave después
+         * de detectar el retorno terrestre.
+         */
+        if (estadoReentrada.isPresent()) {
+            double tiempoReentrada = estadoReentrada.get()
+                    .getDate()
+                    .durationFrom(fechaInicial);
+
+            puntos = puntos
+                    .stream()
+                    .filter(
+                            punto ->
+                                    punto.tiempoSegundos()
+                                    <= tiempoReentrada
+                                    + TOLERANCIA_TIEMPO_SEGUNDOS
+                    )
+                    .toList();
+        }
 
         if (puntos.isEmpty()) {
             throw new IllegalStateException(
@@ -351,30 +245,35 @@ public final class MotorOrbital {
             );
         }
 
+        /*
+         * La lista pudo haberse reasignado al recortarla en la reentrada.
+         * Guardamos la versión definitiva en una referencia final para que
+         * Java permita usarla dentro de las expresiones lambda siguientes.
+         */
+        final List<PuntoTelemetria> puntosFinales = puntos;
+
         int indicePeriapsis = estadoPeriapsis
                 .map(
                         estado -> buscarIndiceTemporal(
-                                puntos,
-                                estado.getDate()
-                                        .durationFrom(fechaInicial)
+                                puntosFinales,
+                                estado.getDate().durationFrom(fechaInicial)
                         )
                 )
                 .orElseGet(
-                        () -> buscarDistanciaLunarMinima(puntos)
+                        () -> buscarDistanciaLunarMinima(puntosFinales)
                 );
 
         int indiceReentrada = estadoReentrada
                 .map(
                         estado -> buscarIndiceTemporal(
-                                puntos,
-                                estado.getDate()
-                                        .durationFrom(fechaInicial)
+                                puntosFinales,
+                                estado.getDate().durationFrom(fechaInicial)
                         )
                 )
                 .orElse(-1);
 
         return new ResultadoSimulacion(
-                puntos,
+                puntosFinales,
                 indicePeriapsis,
                 indiceReentrada,
                 fuenteDatos
@@ -388,34 +287,44 @@ public final class MotorOrbital {
             Frame marcoInercial,
             OneAxisEllipsoid tierra
     ) {
-
         PVCoordinates pv = estado.getPVCoordinates();
         Vector3D posicion = pv.getPosition();
-
         Vector3D posicionLuna = luna.getPVCoordinates(
                 estado.getDate(),
                 marcoInercial
         ).getPosition();
 
-        double altitudKm = tierra.transform(
+        double altitudMetros = tierra.transform(
                 posicion,
                 marcoInercial,
                 estado.getDate()
-        ).getAltitude() / 1000.0;
+        ).getAltitude();
 
-        double distanciaLunarKm = Vector3D.distance(
-                posicion,
-                posicionLuna
-        ) / 1000.0;
+        EstadoTelemetria estadoTelemetria = new EstadoTelemetria() {
+            @Override
+            public Vector3D posicionNaveMetros() {
+                return posicion;
+            }
 
-        return new PuntoTelemetria(
+            @Override
+            public Vector3D posicionLunaMetros() {
+                return posicionLuna;
+            }
+
+            @Override
+            public Vector3D velocidadNaveMetrosSegundo() {
+                return pv.getVelocity();
+            }
+
+            @Override
+            public double altitudTerrestreMetros() {
+                return altitudMetros;
+            }
+        };
+
+        return ModeloTelemetria.calcular(
                 estado.getDate().durationFrom(fechaInicial),
-                posicion.getX() / 1000.0,
-                posicion.getY() / 1000.0,
-                posicion.getZ() / 1000.0,
-                altitudKm,
-                distanciaLunarKm,
-                pv.getVelocity().getNorm() / 1000.0
+                estadoTelemetria
         );
     }
 
@@ -424,32 +333,58 @@ public final class MotorOrbital {
             CelestialBody luna,
             Frame marcoInercial
     ) {
-
         Vector3D posicionNave =
                 estado.getPVCoordinates().getPosition();
+        Vector3D posicionLuna = luna.getPVCoordinates(
+                estado.getDate(),
+                marcoInercial
+        ).getPosition();
 
-        Vector3D posicionLuna =
-                luna.getPVCoordinates(
-                        estado.getDate(),
-                        marcoInercial
-                ).getPosition();
+        return Vector3D.distance(posicionNave, posicionLuna);
+    }
 
-        return Vector3D.distance(
-                posicionNave,
-                posicionLuna
+    private static List<PuntoTelemetria> ordenarYDepurar(
+            List<PuntoTelemetria> puntosOriginales
+    ) {
+        List<PuntoTelemetria> ordenados = new ArrayList<>(puntosOriginales);
+        ordenados.sort(
+                Comparator.comparingDouble(
+                        PuntoTelemetria::tiempoSegundos
+                )
         );
+
+        List<PuntoTelemetria> depurados = new ArrayList<>();
+
+        for (PuntoTelemetria punto : ordenados) {
+            if (depurados.isEmpty()) {
+                depurados.add(punto);
+                continue;
+            }
+
+            PuntoTelemetria ultimo = depurados.get(depurados.size() - 1);
+            double diferencia = Math.abs(
+                    punto.tiempoSegundos() - ultimo.tiempoSegundos()
+            );
+
+            if (diferencia <= TOLERANCIA_TIEMPO_SEGUNDOS) {
+                /* Se conserva el último, que suele ser el punto exacto del evento. */
+                depurados.set(depurados.size() - 1, punto);
+            } else {
+                depurados.add(punto);
+            }
+        }
+
+        return depurados;
     }
 
     private static int buscarIndiceTemporal(
             List<PuntoTelemetria> puntos,
             double tiempoSegundos
     ) {
-
         int mejorIndice = 0;
         double mejorDiferencia = Double.POSITIVE_INFINITY;
 
         for (int indice = 0; indice < puntos.size(); indice++) {
-
             double diferencia = Math.abs(
                     puntos.get(indice).tiempoSegundos()
                     - tiempoSegundos
@@ -467,14 +402,11 @@ public final class MotorOrbital {
     private static int buscarDistanciaLunarMinima(
             List<PuntoTelemetria> puntos
     ) {
-
         int mejorIndice = 0;
         double menorDistancia = Double.POSITIVE_INFINITY;
 
         for (int indice = 0; indice < puntos.size(); indice++) {
-
-            double distancia =
-                    puntos.get(indice).distanciaLunarKm();
+            double distancia = puntos.get(indice).distanciaLunarKm();
 
             if (distancia < menorDistancia) {
                 menorDistancia = distancia;
@@ -491,51 +423,32 @@ public final class MotorOrbital {
      * @param args argumentos de línea de comandos
      */
     public static void main(String[] args) {
-
         ResultadoSimulacion resultado = simular(
                 ParametrosSimulacion.valoresPredeterminados()
         );
 
-        PuntoTelemetria periapsis =
-                resultado.periapsisLunar();
+        PuntoTelemetria periapsis = resultado.periapsisLunar();
 
-        System.out.println(
-                "========================================"
-        );
-        System.out.println(
-                "MISIÓN OASIS LUNAR - MOTOR NUMÉRICO"
-        );
-        System.out.println(
-                "========================================"
-        );
-
+        System.out.println("========================================");
+        System.out.println("MISIÓN OASIS LUNAR - MOTOR NUMÉRICO");
+        System.out.println("========================================");
         System.out.println(
                 "Puntos generados con StepHandler: "
                 + resultado.puntos().size()
         );
-
         System.out.printf(
-                "Distancia lunar mínima: %.2f km%n",
-                periapsis.distanciaLunarKm()
+                "Altitud del periapsis lunar: %.2f km%n",
+                resultado.altitudPeriapsisLunarKm()
         );
-
         System.out.printf(
                 "Tiempo del periapsis: %.2f horas%n",
                 periapsis.tiempoSegundos() / 3600.0
         );
-
         System.out.println(
                 "Reentrada detectada por evento: "
                 + resultado.reentrada().isPresent()
         );
-
-        System.out.println(
-                "Datos Orekit: "
-                + resultado.fuenteDatos()
-        );
-
-        System.out.println(
-                "========================================"
-        );
+        System.out.println("Datos Orekit: " + resultado.fuenteDatos());
+        System.out.println("========================================");
     }
 }

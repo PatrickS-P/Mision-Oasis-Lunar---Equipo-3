@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParametrosSimulacion.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Misión Oasis Lunar</a> &gt; <a href="index.source.html" class="el_package">org.example</a> &gt; <span class="el_source">ParametrosSimulacion.java</span></div><h1>ParametrosSimulacion.java</h1><pre class="source lang-java linenums">package org.example;
+
+/**
+ * Parámetros configurables de una simulación de la Misión Oasis Lunar.
+ *
+ * @param altitudInicialKm altitud inicial sobre la Tierra en kilómetros
+ * @param deltaVMps magnitud de la maniobra TLI en metros por segundo
+ * @param retrasoTliSegundos tiempo desde el inicio hasta la maniobra TLI
+ * @param duracionHoras duración total de la propagación
+ * @param pasoMuestreoSegundos intervalo entre puntos de telemetría
+ * @param direccionTliX componente X/T de la dirección TLI
+ * @param direccionTliY componente Y/N de la dirección TLI
+ * @param direccionTliZ componente Z/W de la dirección TLI
+ */
+public record ParametrosSimulacion(
+        double altitudInicialKm,
+        double deltaVMps,
+        double retrasoTliSegundos,
+        double duracionHoras,
+        double pasoMuestreoSegundos,
+        double direccionTliX,
+        double direccionTliY,
+        double direccionTliZ
+) {
+
+    /**
+     * Verifica que los parámetros sean utilizables.
+     */
+<span class="fc" id="L29">    public ParametrosSimulacion {</span>
+
+<span class="fc" id="L31">        if (</span>
+<span class="fc bfc" id="L32" title="All 6 branches covered.">                !Double.isFinite(altitudInicialKm)</span>
+                || altitudInicialKm &lt; 120.0
+                || altitudInicialKm &gt; 2000.0
+        ) {
+<span class="fc" id="L36">            throw new IllegalArgumentException(</span>
+                    &quot;La altitud inicial debe estar entre 120 y 2000 km.&quot;
+            );
+        }
+
+<span class="fc" id="L41">        if (</span>
+<span class="pc bpc" id="L42" title="1 of 6 branches missed.">                !Double.isFinite(deltaVMps)</span>
+                || deltaVMps &lt; 0.0
+                || deltaVMps &gt; 5000.0
+        ) {
+<span class="fc" id="L46">            throw new IllegalArgumentException(</span>
+                    &quot;El delta-v debe estar entre 0 y 5 km/s.&quot;
+            );
+        }
+
+<span class="fc" id="L51">        if (</span>
+<span class="pc bpc" id="L52" title="1 of 4 branches missed.">                !Double.isFinite(retrasoTliSegundos)</span>
+                || retrasoTliSegundos &lt; 0.0
+        ) {
+<span class="fc" id="L55">            throw new IllegalArgumentException(</span>
+                    &quot;La época TLI no puede ser negativa.&quot;
+            );
+        }
+
+<span class="fc" id="L60">        if (</span>
+<span class="pc bpc" id="L61" title="1 of 6 branches missed.">                !Double.isFinite(duracionHoras)</span>
+                || duracionHoras &lt;= 0.0
+                || duracionHoras &gt; 240.0
+        ) {
+<span class="fc" id="L65">            throw new IllegalArgumentException(</span>
+                    &quot;La duración debe estar entre 0 y 240 horas.&quot;
+            );
+        }
+
+<span class="fc" id="L70">        if (</span>
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">                !Double.isFinite(pasoMuestreoSegundos)</span>
+                || pasoMuestreoSegundos &lt;= 0.0
+        ) {
+<span class="fc" id="L74">            throw new IllegalArgumentException(</span>
+                    &quot;El paso de muestreo debe ser mayor que cero.&quot;
+            );
+        }
+
+<span class="fc" id="L79">        if (</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">                !Double.isFinite(direccionTliX)</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                || !Double.isFinite(direccionTliY)</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">                || !Double.isFinite(direccionTliZ)</span>
+        ) {
+<span class="nc" id="L84">            throw new IllegalArgumentException(</span>
+                    &quot;La dirección TLI debe contener valores numéricos.&quot;
+            );
+        }
+
+<span class="fc" id="L89">        double normaDireccion = Math.sqrt(</span>
+                direccionTliX * direccionTliX
+                + direccionTliY * direccionTliY
+                + direccionTliZ * direccionTliZ
+        );
+
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (normaDireccion &lt; 1.0e-12) {</span>
+<span class="fc" id="L96">            throw new IllegalArgumentException(</span>
+                    &quot;La dirección TLI no puede ser el vector 0, 0, 0.&quot;
+            );
+        }
+<span class="fc" id="L100">    }</span>
+
+    /**
+     * Constructor compatible con configuraciones anteriores.
+     *
+     * Utiliza una dirección tangencial positiva predeterminada.
+     *
+     * @param altitudInicialKm altitud inicial en kilómetros
+     * @param deltaVMps delta-v en metros por segundo
+     * @param retrasoTliSegundos retraso de la maniobra
+     * @param duracionHoras duración de la propagación
+     * @param pasoMuestreoSegundos paso de telemetría
+     */
+    public ParametrosSimulacion(
+            double altitudInicialKm,
+            double deltaVMps,
+            double retrasoTliSegundos,
+            double duracionHoras,
+            double pasoMuestreoSegundos
+    ) {
+<span class="nc" id="L120">        this(</span>
+                altitudInicialKm,
+                deltaVMps,
+                retrasoTliSegundos,
+                duracionHoras,
+                pasoMuestreoSegundos,
+                1.0,
+                0.0,
+                0.0
+        );
+<span class="nc" id="L130">    }</span>
+
+    /**
+     * Parámetros iniciales recomendados para el prototipo.
+     *
+     * @return configuración predeterminada
+     */
+    public static ParametrosSimulacion valoresPredeterminados() {
+<span class="fc" id="L138">        return new ParametrosSimulacion(</span>
+                185.0,
+                3220.0,
+                4320.0,
+                240.0,
+                600.0,
+                1.0,
+                0.0,
+                -0.20
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
