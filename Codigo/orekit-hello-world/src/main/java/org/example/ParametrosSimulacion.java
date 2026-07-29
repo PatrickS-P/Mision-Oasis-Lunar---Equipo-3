@@ -137,13 +137,13 @@ public record ParametrosSimulacion(
     public static ParametrosSimulacion valoresPredeterminados() {
         return new ParametrosSimulacion(
                 185.0,
-                3150.0,
-                600.0,
-                120.0,
+                3220.0,
+                4320.0,
+                240.0,
                 600.0,
                 1.0,
                 0.0,
-                0.0
+                -0.20
         );
     }
 }

@@ -32,12 +32,12 @@ public class TrayectoriaGrafica extends Application {
     private final Canvas canvas = new Canvas(850, 600);
 
     private final TextField campoAltitud = new TextField("185");
-    private final TextField campoDeltaV = new TextField("3.150");
-    private final TextField campoEpocaTli = new TextField("0.1667");
+    private final TextField campoDeltaV = new TextField("3.220");
+    private final TextField campoEpocaTli = new TextField("1.2000");
 
     private final TextField campoDireccionX = new TextField("1.0");
     private final TextField campoDireccionY = new TextField("0.0");
-    private final TextField campoDireccionZ = new TextField("0.0");
+    private final TextField campoDireccionZ = new TextField("-0.20");
 
     private final Label estado = new Label("Estado: esperando parámetros");
     private final Label tiempo = new Label("Tiempo: --");
@@ -45,6 +45,8 @@ public class TrayectoriaGrafica extends Application {
     private final Label distanciaLuna = new Label("Distancia lunar: --");
     private final Label velocidad = new Label("Velocidad: --");
     private final Label periapsis = new Label("Periapsis lunar: --");
+    private final Label reentrada =
+            new Label("Reentrada terrestre: --");
 
     private final Slider escalaTiempo = new Slider(1, 1000, 100);
 
@@ -141,7 +143,8 @@ public class TrayectoriaGrafica extends Application {
                 altitud,
                 distanciaLuna,
                 velocidad,
-                periapsis
+                periapsis,
+                reentrada
         )) {
             etiqueta.setTextFill(Color.WHITE);
             etiqueta.setWrapText(true);
@@ -155,7 +158,8 @@ public class TrayectoriaGrafica extends Application {
                 altitud,
                 distanciaLuna,
                 velocidad,
-                periapsis
+                periapsis,
+                reentrada
         );
 
         VBox panel = new VBox(18, parametros, telemetria);
@@ -245,7 +249,7 @@ public class TrayectoriaGrafica extends Application {
                     altitudKm,
                     deltaVKmps * 1000.0,
                     epocaHoras * 3600.0,
-                    120.0,
+                    240.0,
                     600.0,
                     direccionX,
                     direccionY,
@@ -289,11 +293,33 @@ public class TrayectoriaGrafica extends Application {
                     )
             );
 
-            estado.setText(
-                    "Estado: trayectoria lista · "
-                    + resultado.puntos().size()
-                    + " puntos"
+            reentrada.setText(
+                    resultado.reentrada()
+                            .map(
+                                punto -> String.format(
+                                        "Reentrada terrestre: "
+                                        + "detectada a las %.2f h",
+                                        punto.tiempoSegundos()
+                                                / 3600.0
+                                )
+                            )
+                            .orElse(
+                                "Reentrada terrestre: no detectada"
+                            )
             );
+
+            if (resultado.reentrada().isPresent()) {
+                estado.setText(
+                        "Estado: retorno libre completado · "
+                        + resultado.puntos().size()
+                        + " puntos"
+                );
+            } else {
+                estado.setText(
+                        "Estado: trayectoria calculada · "
+                        + "reentrada no detectada"
+                );
+            }
 
             dibujar();
         });
